@@ -1,665 +1,473 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>線上測驗系統</title>
-    <!-- 
-        使用 Tailwind CSS CDN 是為了方便在單一 HTML 檔案中快速測試。
-        在實際生產環境中，建議透過 npm 安裝 Tailwind CLI 或作為 PostCSS 外掛使用，以優化效能和檔案大小。
-    -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>高登科【靜修校】雲端帳務系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-        body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #e0f7fa; /* 馬卡龍藍色 */
-            color: #333;
+        body { background-color: #ffecec; font-family: "Microsoft JhengHei", sans-serif; }
+        .main-title { color: #0099cc; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.1); }
+        .highlight-red { color: #dc3545; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; border-radius: 10px; margin-bottom: 20px; }
+        .card-header { background-color: #0d6efd; color: white; font-weight: bold; }
+        
+        #amount { 
+            background-color: #ffcccc; 
+            border: 2px solid #ff9999; 
+            font-weight: bold; 
+            font-size: 1.2rem;
+            color: #cc0000;
         }
-        .container {
-            max-width: 900px;
-        }
-        .card {
-            background-color: white;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .progress-bar-container {
-            background-color: #b2ebf2; /* 較深的馬卡龍藍色 */
-            height: 1rem;
-            border-radius: 9999px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            background-color: #64dd17; /* 鮮豔的綠色，用於對比 */
-            height: 100%;
-            transition: width 0.3s ease-in-out;
-        }
-        .option-button {
-            transition: all 0.2s;
-        }
-        .option-button:hover:not(.disabled-option) {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .correct {
-            background-color: #d1fae5;
-            border-color: #34d399;
-        }
-        .wrong {
-            background-color: #fee2e2;
-            border-color: #f87171;
-        }
-        .disabled-option {
-            pointer-events: none;
-            cursor: not-allowed;
-            opacity: 0.8;
-        }
-        .nav-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 3rem;
-            height: 7rem;
-            background-color: #b3e5fc; /* 另一種馬卡龍藍色 */
-            border-radius: 0.5rem;
-            transition: background-color 0.2s, transform 0.2s;
-        }
-        .nav-btn:hover:not(:disabled) {
-            background-color: #81d4fa; /* 較深的藍色 */
-            transform: scale(1.05);
-        }
-        .nav-btn:disabled {
-            background-color: #e0f7fa;
-            cursor: not-allowed;
-            opacity: 0.5;
-            transform: none;
-        }
-        .nav-btn-prev::before {
-            content: '';
-            display: inline-block;
-            width: 0;
-            height: 0;
-            border-top: 1rem solid transparent;
-            border-bottom: 1rem solid transparent;
-            border-right: 1rem solid #4b5563; /* gray-700 */
-        }
-        .nav-btn-next::before {
-            content: '';
-            display: inline-block;
-            width: 0;
-            height: 0;
-            border-top: 1rem solid transparent;
-            border-bottom: 1rem solid transparent;
-            border-left: 1rem solid #4b5563; /* gray-700 */
-        }
+        #amount::placeholder { color: #d9534f; opacity: 0.7; font-size: 1rem;}
 
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+        .d-none { display: none !important; }
+        .table-hover tbody tr:hover { background-color: #fff8f8; }
+        
+        #loading-overlay, #login-overlay, #logout-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
         }
-        .modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            text-align: center;
-        }
-        /* 專為列印設計的樣式 */
-        @media print {
-            body > *:not(.print-container) {
-                display: none;
-            }
-            .print-container {
-                display: block !important;
-                margin: 0;
-                padding: 2cm;
-                font-family: 'Noto Sans TC', sans-serif;
-                color: black;
-            }
-            .page-break {
-                page-break-after: always;
-            }
-        }
+        #loading-overlay { background: rgba(0,0,0,0.5); color: white; flex-direction: column; display: none;}
+        #login-overlay { background: rgba(255,236,236, 0.98); }
+        #logout-overlay { background: rgba(0,0,0,0.85); display: none; }
+        .spinner-border { width: 3rem; height: 3rem; }
+        .col-id { font-family: 'Courier New', monospace; font-weight: bold; color: #555; }
+        .sort-header { cursor: pointer; user-select: none; }
+        .sort-header:hover { background-color: #e9ecef; }
+        .sort-icon { font-size: 0.8em; margin-left: 5px; color: #aaa; }
+        .sort-active { color: #0d6efd; }
     </style>
 </head>
-<body class="p-4 sm:p-8 flex items-center justify-center min-h-screen">
-    <div id="app" class="container mx-auto">
-        <!-- Main Quiz UI will be rendered here -->
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner-border text-light mb-3" role="status"></div>
+    <h4 id="loading-text">資料同步中...</h4>
+</div>
+
+<div id="logout-overlay">
+    <div class="card p-4 text-center" style="width: 400px; border: 2px solid #dc3545;">
+        <h3 class="text-danger mb-3"><i class="fas fa-exclamation-triangle"></i> 登出提醒</h3>
+        <p class="mb-4 text-muted">系統將自動彙整今日新增資料並發送通知信。</p>
+        <div class="d-grid gap-3">
+            <button class="btn btn-success btn-lg" onclick="exportLastMonthData()">
+                <i class="fas fa-file-excel"></i> 1. 匯出近一個月 EXCEL
+            </button>
+            <button class="btn btn-outline-secondary btn-lg" onclick="finalLogout()">
+                <i class="fas fa-sign-out-alt"></i> 2. 已匯出，結束程式
+            </button>
+            <button class="btn btn-link text-muted" onclick="document.getElementById('logout-overlay').style.display='none'">取消</button>
+        </div>
+    </div>
+</div>
+
+<div id="login-overlay">
+    <div class="card p-4" style="width: 350px;">
+        <div class="text-center mb-3">
+            <h3 class="main-title">系統登入</h3>
+            <small class="text-muted">高登科<span class="highlight-red">【靜修校】</span>雲端帳務</small>
+        </div>
+        <form id="loginForm">
+            <div class="mb-3"><label class="form-label">帳號</label><input type="text" class="form-control" id="loginUser" required placeholder="請輸入帳號"></div>
+            <div class="mb-3"><label class="form-label">密碼</label><input type="password" class="form-control" id="loginPass" required placeholder="請輸入密碼"></div>
+            <button type="submit" class="btn btn-primary w-100">登入並連線資料庫</button>
+            <div id="loginError" class="text-danger text-center mt-2 small"></div>
+        </form>
+    </div>
+</div>
+
+<div class="container py-4" id="main-app" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="main-title m-0"><i class="fas fa-cloud"></i> 高登科<span class="highlight-red">【靜修校】</span>雲端帳務</h2>
+        <div>
+            <span class="me-2 text-secondary"><i class="fas fa-user-circle"></i> <span id="displayUsername">User</span></span>
+            <button class="btn btn-sm btn-outline-danger" onclick="document.getElementById('logout-overlay').style.display='flex'">登出</button>
+        </div>
     </div>
 
-    <!-- 隱藏的列印內容容器 -->
-    <div id="print-container" class="print-container hidden"></div>
+    <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#input"><i class="fas fa-pen"></i> 收支登錄</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#report" onclick="updateDateRange()"><i class="fas fa-chart-pie"></i> 報表匯整</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#manage"><i class="fas fa-cogs"></i> 設定</button></li>
+        <li class="nav-item d-none" id="adminTab"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#users"><i class="fas fa-users-cog"></i> 使用者管理</button></li>
+        <li class="nav-item d-none" id="logTab"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#logs"><i class="fas fa-history"></i> 操作紀錄</button></li>
+    </ul>
 
-    <script>
-        let questionBank = [];
-        let questions = []; // 儲存隨機選出的題目
-        let userAnswers = [];
-        let currentQuestionIndex = 0;
-        let correctAnswers = 0;
-        let selectedAnswer = null;
-        let answered = false;
-        let isReviewing = false;
-        let wrongQuestions = [];
-        let removedQuestions = []; // 儲存被移除的題目
-        let frequentlyWrongQuestions = []; // 新增：儲存常錯題目
-        let quizSize = 0;
-        let originalFileName = '';
-
-        const app = document.getElementById('app');
-        const printContainer = document.getElementById('print-container');
-
-        function showModal(message) {
-            const modal = document.createElement('div');
-            modal.className = 'modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <p class="text-gray-800 text-lg mb-4">${message}</p>
-                    <button onclick="this.closest('.modal').remove()" class="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md transition-colors hover:bg-blue-600">確定</button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
-
-        // 步驟 1: 初始畫面 - 載入檔案
-        function renderInitialScreen() {
-            app.innerHTML = `
-                <div class="card text-center">
-                    <h1 class="text-3xl font-bold mb-4">線上測驗系統</h1>
-                    <p class="text-gray-600 mb-6">請先導入您的題庫檔案 (.js)。</p>
-                    
-                    <div class="file-input-container mb-6">
-                        <input type="file" id="fileInput" accept=".js" class="hidden">
-                        <label for="fileInput" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg shadow-md hover:bg-blue-600 transition-colors cursor-pointer">
-                            選擇題庫檔案
-                        </label>
-                    </div>
-                    
-                    <div id="fileStatus" class="text-gray-500"></div>
-                    
-                    <div id="quizSizeButtons" class="hidden mt-8">
-                        <p class="text-gray-600 mb-4">檔案已載入！請選擇您想測驗的題數。</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                            <button onclick="selectQuizSize(25)" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition-colors">25 題</button>
-                            <button onclick="selectQuizSize(50)" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition-colors">50 題</button>
-                            <button onclick="selectQuizSize(75)" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition-colors">75 題</button>
-                            <button onclick="selectQuizSize(100)" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition-colors">100 題</button>
-                            <button onclick="selectQuizSize('all')" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition-colors">全部 (0 題)</button>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="input">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header" id="formTitle">新增交易</div>
+                        <div class="card-body">
+                            <form id="accountForm">
+                                <input type="hidden" id="editId">
+                                <div class="mb-3"><label class="form-label">日期</label><input type="date" class="form-control" id="date" required></div>
+                                <div class="mb-3"><label class="form-label">收支類型</label><select class="form-select" id="type" onchange="updateCategoriesFromSettings()" required><option value="expense" selected>支出</option><option value="income">收入</option></select></div>
+                                <div class="mb-3"><label class="form-label">項目分類</label><select class="form-select" id="category" required onchange="checkMealCategory()"></select></div>
+                                <div class="mb-3"><label class="form-label fw-bold text-danger">金額</label><input type="number" class="form-control" id="amount" placeholder="請在此輸入金額" required></div>
+                                <div class="mb-3">
+                                    <label class="form-label">內容 (備註)</label>
+                                    <input type="text" class="form-control" id="descInput">
+                                    <select class="form-select d-none" id="descSelect" onchange="checkMealOption()"></select>
+                                    <input type="text" class="form-control mt-2 d-none" id="descOtherInput" placeholder="請輸入新店家名稱 (將自動儲存)">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100" id="submitBtn"><i class="fas fa-check"></i> 記錄並送出</button>
+                                <button type="button" class="btn btn-secondary w-100 mt-2 d-none" id="cancelEditBtn" onclick="cancelEdit()">取消修改</button>
+                            </form>
                         </div>
                     </div>
                 </div>
-            `;
-
-            const fileInput = document.getElementById('fileInput');
-            const fileStatus = document.getElementById('fileStatus');
-            const quizSizeButtons = document.getElementById('quizSizeButtons');
-
-            fileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    originalFileName = file.name;
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            const fileContent = e.target.result;
-                            const jsonContent = fileContent.replace(/const questionBank\s*=\s*/, '').replace(/;$/, '').trim();
-                            
-                            if (jsonContent.startsWith('[') && jsonContent.endsWith(']')) {
-                                const parsedContent = JSON.parse(jsonContent);
-                                if (Array.isArray(parsedContent) && parsedContent.length > 0 && parsedContent.every(validateQuestion)) {
-                                    questionBank = parsedContent;
-                                    fileStatus.textContent = `檔案 "${file.name}" 已成功載入！共有 ${questionBank.length} 題。`;
-                                    quizSizeButtons.classList.remove('hidden');
-                                    document.querySelector('#quizSizeButtons button:last-child').textContent = `全部 (${questionBank.length} 題)`;
-                                } else {
-                                    fileStatus.textContent = `錯誤：題庫檔案內容無效或格式不正確。`;
-                                    questionBank = [];
-                                }
-                            } else {
-                                fileStatus.textContent = `錯誤：題庫檔案格式無效。`;
-                                questionBank = [];
-                            }
-                        } catch (error) {
-                            fileStatus.textContent = `載入檔案時發生錯誤：${error.message}`;
-                            console.error(error);
-                            questionBank = [];
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-            });
-        }
-        
-        function validateQuestion(q) {
-            return (
-                q &&
-                typeof q.id === 'number' &&
-                typeof q.question === 'string' &&
-                Array.isArray(q.options) && q.options.length > 0 &&
-                typeof q.answer === 'number' &&
-                typeof q.explanation === 'string'
-            );
-        }
-
-        // 步驟 2: 選擇題數並隨機出題
-        function selectQuizSize(num) {
-            let totalQuestions = questionBank.length;
-            if (num !== 'all') {
-                quizSize = parseInt(num);
-            } else {
-                quizSize = totalQuestions;
-            }
-            
-            // 隨機選出題目
-            const availableQuestions = questionBank.filter(q => !removedQuestions.some(removedQ => removedQ.id === q.id));
-            questions = [...availableQuestions].sort(() => 0.5 - Math.random()).slice(0, quizSize);
-
-            if (questions.length === 0) {
-                showModal('錯誤：沒有可用的題目！請確認您的題庫檔案中包含題目，或重新匯入一個未被清空的題庫。');
-                return;
-            }
-
-            // 進入模式選擇畫面
-            renderModeSelectionScreen();
-        }
-
-        // 步驟 3: 模式選擇 - 線上測驗或列印
-        function renderModeSelectionScreen() {
-            app.innerHTML = `
-                <div class="card text-center">
-                    <h1 class="text-3xl font-bold mb-4">測驗題數已選定</h1>
-                    <p class="text-xl text-gray-600 mb-6">已隨機選出 ${questions.length} 題，請選擇您的操作：</p>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button onclick="startOnlineQuiz()" class="px-6 py-4 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition-colors">
-                            開始線上測驗
-                        </button>
-                        <div class="grid grid-cols-1 gap-4">
-                            <button onclick="prepareAndPrint('questions')" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg shadow-md hover:bg-blue-600 transition-colors">
-                                列印題本 (僅題目)
-                            </button>
-                            <button onclick="prepareAndPrint('answers')" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg shadow-md hover:bg-blue-600 transition-colors">
-                                列印答案與解析
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <button onclick="renderInitialScreen()" class="mt-8 px-6 py-3 bg-gray-200 text-gray-700 font-bold rounded-lg shadow-md transition-colors hover:bg-gray-300">
-                        返回上一頁
-                    </button>
-                </div>
-            `;
-        }
-        
-        // 步驟 3B: 準備並觸發列印（使用隨機選出的題目）
-        function prepareAndPrint(type) {
-            const isQuestions = type === 'questions';
-            let content = '';
-
-            // 使用隨機選出的 `questions` 陣列，而非整個 `questionBank`
-            if (isQuestions) {
-                content = questions.map((q, index) => `
-                    <div class="mb-6">
-                        <h2 class="text-lg font-bold mb-2">${index + 1}. ${q.question}</h2>
-                        <ul class="list-none space-y-2 text-gray-700">
-                            ${q.options.map((opt, optIndex) => `
-                                <li class="pl-4">${['A', 'B', 'C', 'D'][optIndex]}. ${opt}</li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                `).join('');
-            } else { // type === 'answers'
-                content = questions.map((q, index) => `
-                    <div class="mb-6">
-                        <h2 class="text-lg font-bold mb-2">${index + 1}. ${q.question}</h2>
-                        <p class="text-md mt-1 mb-1 font-semibold text-green-600">正確答案：${['A', 'B', 'C', 'D'][q.answer - 1]}</p>
-                        <p class="text-md font-semibold text-gray-800">解析：</p>
-                        <p class="text-sm text-gray-700">${q.explanation}</p>
-                    </div>
-                `).join('');
-            }
-
-            printContainer.innerHTML = content;
-            window.print();
-        }
-
-        // 步驟 3A: 開始線上測驗
-        function startOnlineQuiz() {
-            currentQuestionIndex = 0;
-            correctAnswers = 0;
-            answered = false;
-            isReviewing = false;
-            userAnswers = [];
-            wrongQuestions = [];
-            frequentlyWrongQuestions = []; // 重設常錯題目列表
-            renderQuizScreen();
-        }
-
-        // 線上測驗畫面
-        function renderQuizScreen() {
-            if (currentQuestionIndex >= quizSize) {
-                renderResultScreen();
-                return;
-            }
-
-            const question = questions[currentQuestionIndex];
-            const progressPercentage = (currentQuestionIndex / quizSize) * 100;
-            const isFrequentlyWrong = frequentlyWrongQuestions.some(q => q.id === question.id);
-
-            app.innerHTML = `
-                <div class="card">
-                    <!-- Progress Bar & Score -->
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="w-full mr-4">
-                            <div class="text-sm font-semibold text-gray-700 mb-1">
-                                進度：<span id="question-count">${currentQuestionIndex + 1} / ${quizSize}</span>
-                            </div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar" style="width: ${progressPercentage}%;"></div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-list"></i> 雲端資料列表 <button class="btn btn-sm btn-light ms-2" onclick="fetchCloudData()">🔄</button></span>
+                            <div>
+                                <div class="form-check form-switch d-inline-block me-3">
+                                    <input class="form-check-input" type="checkbox" id="toggleId" checked onchange="renderTable()">
+                                    <label class="form-check-label text-white small" for="toggleId">顯示序號</label>
+                                </div>
+                                <span id="currentBalance" class="badge bg-warning text-dark">0</span>
                             </div>
                         </div>
-                        <div class="text-right">
-                            <span class="text-2xl font-bold text-green-600" id="score">${correctAnswers}</span> / <span class="text-xl text-gray-500">${currentQuestionIndex}</span>
-                        </div>
-                    </div>
-
-                    <!-- Question Content -->
-                    <div class="mb-6">
-                        <div class="text-sm font-semibold text-gray-500">
-                            來源: ${question.level} 
-                            <span class="ml-4">已從題庫中移除: ${removedQuestions.length} 題</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <h2 class="text-xl font-bold my-4">${question.id}. ${question.question}</h2>
-                            <div class="flex-shrink-0 flex items-start space-y-2 flex-col">
-                                <button onclick="toggleFrequentlyWrongQuestion(${question.id})" class="px-3 py-1 font-bold rounded-lg shadow-md transition-colors whitespace-nowrap ${isFrequentlyWrong ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-yellow-200 text-yellow-800 hover:bg-yellow-300'}">
-                                    ${isFrequentlyWrong ? '已列為常錯' : '將此題列入常錯題目'}
-                                </button>
-                                <button onclick="removeQuestion(${question.id})" class="px-3 py-1 bg-red-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-red-600">從題庫中去除該題</button>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                                <table class="table table-hover table-sm sticky-top">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="id-col">序號</th>
+                                            <th class="sort-header" onclick="sortBy('date')">日期 <i id="sort-date" class="fas fa-sort-down sort-active sort-icon"></i></th>
+                                            <th class="sort-header" onclick="sortBy('category')">分類 <i id="sort-category" class="fas fa-sort sort-icon"></i></th>
+                                            <th class="sort-header" onclick="sortBy('desc')">內容 <i id="sort-desc" class="fas fa-sort sort-icon"></i></th>
+                                            <th class="sort-header text-end" onclick="sortBy('amount')">金額 <i id="sort-amount" class="fas fa-sort sort-icon"></i></th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transactionList"></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Main flex container for options and buttons -->
-                    <div class="flex items-center justify-between space-x-4">
-                        <button id="prev-btn" onclick="previousQuestion()" class="nav-btn nav-btn-prev" disabled></button>
-
-                        <div id="options-container" class="flex-grow space-y-3">
-                        </div>
-
-                        <button id="next-btn" onclick="nextQuestion()" class="nav-btn nav-btn-next" disabled></button>
+        <div class="tab-pane fade" id="report">
+            <div class="card border-info">
+                <div class="card-header bg-info text-dark fw-bold">期間報表統計</div>
+                <div class="card-body bg-white">
+                    <div class="row g-3 align-items-end mb-4 border-bottom pb-3">
+                        <div class="col-md-3"><label class="form-label">期間</label><select class="form-select" id="reportPeriodMode" onchange="updateDateRange()"><option value="thisMonth" selected>本月</option><option value="lastMonth">上月</option><option value="custom">自訂</option></select></div>
+                        <div class="col-md-3"><input type="date" class="form-control" id="reportStartDate" onchange="updatePreviewStats()"></div>
+                        <div class="col-md-3"><input type="date" class="form-control" id="reportEndDate" onchange="updatePreviewStats()"></div>
+                        <div class="col-md-3"><button class="btn btn-success w-100" onclick="exportComplexExcel()"><i class="fas fa-file-excel"></i> 匯出 Excel</button></div>
                     </div>
-                    
-                    <div id="feedback-container" class="hidden my-6">
-                        <div id="feedback-message" class="text-lg font-bold"></div>
-                        <div id="explanation" class="text-gray-700 mt-2"></div>
+                    <div class="row mb-3">
+                        <div class="col-md-6"><div class="card h-100 border-success"><div class="card-header bg-success text-white">收入</div><div class="card-body p-0"><table class="table table-striped mb-0"><tbody id="preview-income-body"></tbody></table></div></div></div>
+                        <div class="col-md-6"><div class="card h-100 border-danger"><div class="card-header bg-danger text-white">支出</div><div class="card-body p-0"><table class="table table-striped mb-0"><tbody id="preview-expense-body"></tbody></table></div></div></div>
+                    </div>
+                    <div class="alert alert-secondary text-center fw-bold">本期結餘: <span id="preview-final-balance" class="text-primary fs-5">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="manage">
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark"><i class="fas fa-utensils"></i> 餐費支出選項設定 (雲端同步)</div>
+                <div class="card-body">
+                    <div class="input-group mb-2"><input type="text" class="form-control" id="newMealOpt" placeholder="輸入新店家名稱"><button class="btn btn-outline-dark" onclick="addMealOption()">新增選項</button></div>
+                    <div id="mealOptionList" class="d-flex flex-wrap gap-2 p-2 border rounded bg-white"></div>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">收支項目分類</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 border-end"><h6>支出分類</h6><div class="input-group mb-2"><input type="text" class="form-control" id="newExpenseCat"><button class="btn btn-outline-danger" onclick="addCategory('expense')">新增</button></div><div id="expenseCatList"></div></div>
+                        <div class="col-md-6"><h6>收入分類</h6><div class="input-group mb-2"><input type="text" class="form-control" id="newIncomeCat"><button class="btn btn-outline-success" onclick="addCategory('income')">新增</button></div><div id="incomeCatList"></div></div>
                     </div>
                 </div>
-            `;
+            </div>
+        </div>
 
-            const optionsContainer = document.getElementById('options-container');
-            const feedbackContainer = document.getElementById('feedback-container');
-            const feedbackMessage = document.getElementById('feedback-message');
-            const explanation = document.getElementById('explanation');
-            const nextBtn = document.getElementById('next-btn');
-            const prevBtn = document.getElementById('prev-btn');
+        <div class="tab-pane fade" id="users">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white"><i class="fas fa-users-cog"></i> 雲端使用者帳號管理</div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title" id="userFormTitle">新增使用者</h6>
+                                    <form id="newUserForm">
+                                        <input type="hidden" id="isEditUser" value="false">
+                                        <div class="mb-2">
+                                            <label class="small text-muted">帳號 (支援0開頭數字)</label>
+                                            <input type="text" class="form-control" id="newUsername" placeholder="輸入帳號" required>
+                                        </div>
+                                        <div class="mb-2"><input type="text" class="form-control" id="newRealname" placeholder="顯示名稱" required></div>
+                                        <div class="mb-2">
+                                            <label class="small text-muted">密碼 (支援0開頭數字)</label>
+                                            <input type="text" class="form-control" id="newPassword" placeholder="輸入密碼" required>
+                                        </div>
+                                        <div class="mb-2"><select class="form-select" id="newRole"><option value="user">一般使用者</option><option value="admin">管理者</option></select></div>
+                                        <button type="submit" class="btn btn-primary w-100" id="userSubmitBtn">建立雲端帳號</button>
+                                        <button type="button" class="btn btn-secondary w-100 mt-2 d-none" id="cancelUserEditBtn" onclick="cancelUserEdit()">取消修改</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8"><table class="table table-bordered"><thead><tr><th>帳號</th><th>名稱</th><th>權限</th><th>操作</th></tr></thead><tbody id="userListBody"></tbody></table></div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            question.options.forEach((option, index) => {
-                const optionBtn = document.createElement('button');
-                optionBtn.className = 'option-button w-full text-left px-4 py-3 border rounded-lg bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
-                optionBtn.textContent = `${['A', 'B', 'C', 'D'][index]}. ${option}`;
-                optionBtn.setAttribute('data-index', index);
-                optionBtn.onclick = () => selectOption(optionBtn, index, question.answer - 1);
-                optionsContainer.appendChild(optionBtn);
-            });
+        <div class="tab-pane fade" id="logs">
+            <div class="card border-secondary">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history"></i> 雲端操作紀錄</span>
+                    <button class="btn btn-success btn-sm" onclick="exportLogs()"><i class="fas fa-file-excel"></i> 匯出紀錄 (Excel)</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive"><table class="table table-striped table-sm" style="font-size: 0.8rem;"><thead><tr><th style="width:140px;">時間</th><th style="width:100px;">操作者</th><th style="width:80px;">動作</th><th>詳情 (系統序號/類型/分類/金額/備註)</th></tr></thead><tbody id="logListBody"></tbody></table></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-            if (isReviewing || currentQuestionIndex < userAnswers.length) {
-                answered = true;
-                nextBtn.disabled = false;
-                
-                const allOptions = document.querySelectorAll('.option-button');
-                allOptions.forEach(btn => btn.classList.add('disabled-option'));
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-                const userSelected = userAnswers[currentQuestionIndex];
-                const correctIndex = question.answer - 1;
+<script>
+    // ▼▼▼ 您的網址 ▼▼▼
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzGnWo-GWlavpYjMb5I6IwCIAsMlSeu2eHou2chlJPJELckyTU7bsln1Ho7F68n2VA-Gw/exec';
+    
+    let transactions = []; let cloudUsers = []; let cloudLogs = []; let currentUser = null; let sessionActions = [];
+    let sortKey = 'date'; let sortOrder = 'desc';
+    let settings = { expense: ["補習班雜支", "教材文具類支出", "年度教材(帳號/合約)", "餐費支出", "加油", "水電費 電話費", "其他人事支出", "車輛相關支出"], income: ["入帳(零用金)", "學生轉入餐費", "其他收入"], mealOptions: ["天食鍋燒", "B鴨董", "來碗粥", "飯卷", "水餃峰", "太祖魷魚羮", "八方鍋胋", "阿胖食堂", "點心"] };
 
-                if (userSelected !== undefined) {
-                    const userOptionBtn = document.querySelector(`[data-index="${userSelected}"]`);
-                    userOptionBtn.classList.add(userSelected === correctIndex ? 'correct' : 'wrong');
-                }
+    function getTodayString() { const n=new Date(); return new Date(n.getTime()-(n.getTimezoneOffset()*60000)).toISOString().slice(0,10); }
 
-                const correctOptionBtn = document.querySelector(`[data-index="${correctIndex}"]`);
-                correctOptionBtn.classList.add('correct');
+    // 1. 登入
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPass').value.trim();
+        showLoading('正在驗證帳號...');
+        fetch(scriptURL).then(res => res.json()).then(res => {
+            if(res.result === 'success') {
+                const users = res.data.users;
+                if(res.data.settings) settings = res.data.settings;
+                let foundUser = users.find(x => String(x.username) === u && String(x.password) === p);
+                if(!foundUser && u === 'admin' && p === '54381017') foundUser = { username: 'admin', role: 'admin', name: '系統預設管理員' };
+                if(foundUser) { currentUser = foundUser; sessionActions = []; loginSuccess(); } else { document.getElementById('loginError').innerText = '帳號或密碼錯誤'; }
+            } else { alert('連線失敗'); }
+        }).catch(err => { console.error(err); alert('網路錯誤'); }).finally(() => hideLoading());
+    });
 
-                if (userSelected === correctIndex) {
-                    feedbackMessage.textContent = '✔️ 恭喜你，回答正確！';
-                    feedbackMessage.classList.add('text-green-600');
-                } else {
-                    feedbackMessage.textContent = '❌ 回答錯誤！';
-                    feedbackMessage.classList.add('text-red-600');
-                }
-                
-                explanation.innerHTML = `
-                    <p class="font-bold">正確答案：${['A', 'B', 'C', 'D'][correctIndex]}. ${question.options[correctIndex]}</p>
-                    <p class="mt-2 font-bold">解析:</p>
-                    <p>${question.explanation}</p>
-                `;
-                feedbackContainer.classList.remove('hidden');
+    function loginSuccess() {
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        document.getElementById('displayUsername').innerText = `${currentUser.name} (${currentUser.role==='admin'?'管理員':'使用者'})`;
+        document.getElementById('date').value = getTodayString();
+        if(currentUser.role === 'admin') { document.getElementById('adminTab').classList.remove('d-none'); document.getElementById('logTab').classList.remove('d-none'); }
+        renderSettings(); updateCategoriesFromSettings(); fetchCloudData();
+    }
 
-            } else {
-                answered = false;
-                nextBtn.disabled = true;
+    // 2. 登出
+    function finalLogout() {
+        showLoading('正在匯總資料並發送通知...');
+        fetch(scriptURL, { method: 'POST', body: JSON.stringify({ op: 'send_summary', user: currentUser.name, time: new Date().toLocaleString(), summary: sessionActions }), headers: { "Content-Type": "text/plain;charset=utf-8" } }).finally(() => { location.reload(); });
+    }
+
+    // 3. 通訊
+    function showLoading(text) { document.getElementById('loading-text').innerText = text; document.getElementById('loading-overlay').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+    function fetchCloudData() {
+        showLoading('同步雲端資料中...');
+        fetch(scriptURL).then(res => res.json()).then(res => {
+            if(res.result === 'success') {
+                transactions = res.data.transactions;
+                cloudUsers = res.data.users;
+                cloudLogs = res.data.logs;
+                if(res.data.settings) { settings = res.data.settings; renderSettings(); updateCategoriesFromSettings(); }
+                renderTable(); updatePreviewStats();
+                if(currentUser && currentUser.role === 'admin') { renderUserList(); renderLogs(); }
             }
-            
-            prevBtn.disabled = currentQuestionIndex === 0;
-            const scoreDisplay = document.getElementById('score');
-            scoreDisplay.textContent = correctAnswers;
-        }
+        }).catch(err => alert('連線錯誤')).finally(() => hideLoading());
+    }
+    
+    function sendCloudCommand(payload, successMsg, callback) {
+        showLoading('資料同步中...');
+        fetch(scriptURL, { method: 'POST', body: JSON.stringify(payload), headers: { "Content-Type": "text/plain;charset=utf-8" } })
+        .then(res => res.json()).then(res => {
+            if(res.result === 'success') {
+                if(successMsg) alert(successMsg); fetchCloudData(); if(callback) callback();
+            } else { alert('操作失敗: ' + res.message); }
+        }).finally(() => hideLoading());
+    }
+    function saveSettingsToCloud() { fetch(scriptURL, { method: 'POST', body: JSON.stringify({ op: 'save_settings', settings: settings }), headers: { "Content-Type": "text/plain;charset=utf-8" } }); }
 
-        // Handle user selecting an option
-        function selectOption(button, selectedIndex, correctIndex) {
-            if (answered) return;
-            answered = true;
-            userAnswers[currentQuestionIndex] = selectedIndex;
-            
-            const feedbackContainer = document.getElementById('feedback-container');
-            const feedbackMessage = document.getElementById('feedback-message');
-            const explanation = document.getElementById('explanation');
-            const nextBtn = document.getElementById('next-btn');
-            const allOptions = document.querySelectorAll('.option-button');
-
-            allOptions.forEach(btn => {
-                btn.classList.add('disabled-option');
-            });
-            nextBtn.disabled = false;
-
-            if (selectedIndex === correctIndex) {
-                correctAnswers++;
-                button.classList.add('correct');
-                feedbackMessage.textContent = '✔️ 恭喜你，回答正確！';
-                feedbackMessage.classList.add('text-green-600');
-            } else {
-                button.classList.add('wrong');
-                const correctOptionBtn = document.querySelector(`[data-index="${correctIndex}"]`);
-                correctOptionBtn.classList.add('correct');
-                feedbackMessage.textContent = '❌ 回答錯誤！';
-                feedbackMessage.classList.add('text-red-600');
-                wrongQuestions.push(questions[currentQuestionIndex]);
-            }
-            
-            explanation.innerHTML = `
-                <p class="font-bold">正確答案：${['A', 'B', 'C', 'D'][correctIndex]}. ${questions[currentQuestionIndex].options[correctIndex]}</p>
-                <p class="mt-2 font-bold">解析:</p>
-                <p>${questions[currentQuestionIndex].explanation}</p>
-            `;
-
-            feedbackContainer.classList.remove('hidden');
-        }
-
-        function nextQuestion() {
-            currentQuestionIndex++;
-            isReviewing = false;
-            renderQuizScreen();
-        }
+    // 4. 帳務與自動學習
+    document.getElementById('accountForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const cat = document.getElementById('category').value;
+        let finalDesc; let isNewMeal = false;
         
-        function previousQuestion() {
-            if (currentQuestionIndex > 0) {
-                currentQuestionIndex--;
-                isReviewing = true;
-                renderQuizScreen();
-            }
-        }
+        if (cat === '餐費支出') {
+            const selectVal = document.getElementById('descSelect').value;
+            if (selectVal === 'other') {
+                finalDesc = document.getElementById('descOtherInput').value.trim();
+                if (finalDesc && !settings.mealOptions.includes(finalDesc)) { settings.mealOptions.push(finalDesc); isNewMeal = true; }
+            } else { finalDesc = selectVal; }
+        } else { finalDesc = document.getElementById('descInput').value.trim(); }
 
-        function removeQuestion(questionId) {
-            const index = questionBank.findIndex(q => q.id === questionId);
-            if (index > -1) {
-                const removedQ = questionBank.splice(index, 1)[0];
-                const exists = removedQuestions.some(q => q.id === removedQ.id);
-                if (!exists) {
-                    removedQuestions.push(removedQ);
-                }
-            }
-            nextQuestion();
-        }
+        const editId = document.getElementById('editId').value;
+        const payload = {
+            op: editId ? 'edit' : 'add', tableName: 'transactions', id: editId ? editId : null,
+            date: document.getElementById('date').value, type: document.getElementById('type').value, category: cat,
+            amount: document.getElementById('amount').value, desc: finalDesc, createdBy: currentUser.username
+        };
+        
+        sendCloudCommand(payload, editId ? '修改成功' : '記錄並送出成功', () => { cancelEdit(); if(isNewMeal) { saveSettingsToCloud(); renderSettings(); } });
+        sessionActions.push({ action: editId ? '修改' : '新增', category: cat, amount: payload.amount, desc: finalDesc + (editId?` (ID:${editId})` : ' (新資料)') });
+    });
 
-        // 新增功能：將題目列入常錯題目
-        function toggleFrequentlyWrongQuestion(questionId) {
-            const question = questions.find(q => q.id === questionId);
-            if (!question) return;
+    function deleteTrans(id) { if(confirm('確定刪除？')) { sendCloudCommand({ op: 'delete', tableName: 'transactions', id: id }, '刪除成功'); sessionActions.push({ action: '刪除', category: '-', amount: '-', desc: `ID:${id}` }); } }
 
-            const index = frequentlyWrongQuestions.findIndex(q => q.id === questionId);
-            if (index > -1) {
-                frequentlyWrongQuestions.splice(index, 1);
-            } else {
-                frequentlyWrongQuestions.push(question);
-            }
-            renderQuizScreen(); // 重新渲染以更新按鈕狀態
-        }
+    // 5. 設定管理
+    function addCategory(t){ const v=document.getElementById(t==='expense'?'newExpenseCat':'newIncomeCat').value.trim(); if(v){settings[t].push(v); saveSettingsToCloud(); renderSettings(); updateCategoriesFromSettings();}}
+    function removeCat(t,i){if(confirm('確定刪除？')){settings[t].splice(i,1); saveSettingsToCloud(); renderSettings(); updateCategoriesFromSettings();}}
+    function addMealOption() { const v = document.getElementById('newMealOpt').value.trim(); if(v && !settings.mealOptions.includes(v)) { settings.mealOptions.push(v); saveSettingsToCloud(); renderSettings(); document.getElementById('newMealOpt').value = ''; } }
+    function removeMealOpt(i) { if(confirm('確定刪除？')) { settings.mealOptions.splice(i, 1); saveSettingsToCloud(); renderSettings(); } }
+    function editMealOpt(i) { const old = settings.mealOptions[i]; const n = prompt("修改名稱:", old); if(n && n.trim()!==old){ settings.mealOptions[i]=n.trim(); saveSettingsToCloud(); renderSettings(); } }
+    function renderSettings() { 
+        const r = (id, list, type) => { const el = document.getElementById(id); el.innerHTML = ''; list.forEach((c, i) => el.innerHTML += `<div class="d-flex justify-content-between p-1 border-bottom"><span>${c}</span><button class="btn btn-sm btn-outline-danger" onclick="removeCat('${type}', ${i})">×</button></div>`); }; 
+        r('expenseCatList', settings.expense, 'expense'); r('incomeCatList', settings.income, 'income'); 
+        const m = document.getElementById('mealOptionList'); m.innerHTML=''; 
+        settings.mealOptions.forEach((o,i) => { m.innerHTML += `<div class="badge bg-warning text-dark p-2 border me-1 mb-1">${o} <i class="fas fa-edit ms-1" style="cursor:pointer" onclick="editMealOpt(${i})"></i><i class="fas fa-times ms-1" style="cursor:pointer" onclick="removeMealOpt(${i})"></i></div>`; });
+    }
 
-        // Render result screen
-        function renderResultScreen() {
-            let wrongQuestionsHtml = wrongQuestions.length > 0 ? `
-                <h3 class="text-xl font-bold mt-8 mb-4">您的錯題整理：</h3>
-                <div class="space-y-6">
-                    ${wrongQuestions.map(q => `
-                        <div class="bg-gray-100 p-4 rounded-lg">
-                            <h4 class="font-bold text-gray-800">題序: ${q.id} (${q.level})</h4>
-                            <p class="mt-1">${q.question}</p>
-                            <ul class="list-disc list-inside mt-2 text-sm text-gray-700">
-                                ${q.options.map((opt, i) => `<li>${['A', 'B', 'C', 'D'][i]}. ${opt}</li>`).join('')}
-                            </ul>
-                            <p class="mt-2 font-bold text-green-600">正確答案：${['A', 'B', 'C', 'D'][q.answer - 1]}</p>
-                            <p class="mt-2 font-bold text-gray-800">解析:</p>
-                            <p class="text-gray-700">${q.explanation}</p>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : `<p class="mt-4">恭喜！您本次測驗沒有錯題。</p>`;
+    // 6. 使用者管理 (新增修改功能)
+    document.getElementById('newUserForm').addEventListener('submit', (e) => {
+        e.preventDefault(); 
+        const isEdit = document.getElementById('isEditUser').value === 'true';
+        const newU = document.getElementById('newUsername').value.trim();
+        
+        if(!isEdit && cloudUsers.some(x => String(x.username) === newU)) { alert('帳號已存在'); return; }
+        
+        const payload = { 
+            op: isEdit ? 'edit' : 'add', 
+            tableName: 'users', 
+            username: newU, // 這是 ID (不變)
+            name: document.getElementById('newRealname').value.trim(), 
+            password: document.getElementById('newPassword').value, 
+            role: document.getElementById('newRole').value,
+            currentAdmin: currentUser.username
+        };
+        sendCloudCommand(payload, isEdit ? '修改成功' : '使用者新增成功', () => {
+            cancelUserEdit();
+        });
+    });
 
-            let removedQuestionsHtml = removedQuestions.length > 0 ? `
-                <h3 class="text-xl font-bold mt-8 mb-4 text-red-600">從題庫中刪除的題目：</h3>
-                <p class="text-gray-600 mb-2">以下 ${removedQuestions.length} 題已標記為刪除，匯出更新檔後將不會再出現。</p>
-                <div class="space-y-4">
-                    ${removedQuestions.map(q => `
-                        <div class="bg-red-100 p-4 rounded-lg">
-                            <p class="font-bold text-gray-800">題序: ${q.id}</p>
-                            <p class="mt-1 text-gray-700">${q.question}</p>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : `<p class="mt-4 text-red-600">本次測驗沒有從題庫中刪除任何題目。</p>`;
-            
-            let frequentlyWrongHtml = frequentlyWrongQuestions.length > 0 ? `
-                <h3 class="text-xl font-bold mt-8 mb-4 text-orange-600">本次測驗常錯題目：</h3>
-                <p class="text-gray-600 mb-2">以下 ${frequentlyWrongQuestions.length} 題已標記為常錯。</p>
-                <div class="space-y-4">
-                    ${frequentlyWrongQuestions.map(q => `
-                        <div class="bg-orange-100 p-4 rounded-lg">
-                            <p class="font-bold text-gray-800">題序: ${q.id}</p>
-                            <p class="mt-1 text-gray-700">${q.question}</p>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : `<p class="mt-4 text-orange-600">本次測驗沒有將任何題目列為常錯。</p>`;
+    function editUser(u) {
+        const user = cloudUsers.find(x => String(x.username) === String(u));
+        if(!user) return;
+        document.getElementById('isEditUser').value = 'true';
+        document.getElementById('newUsername').value = user.username;
+        document.getElementById('newUsername').disabled = true; // 帳號不可改
+        document.getElementById('newRealname').value = user.name;
+        document.getElementById('newPassword').value = user.password;
+        document.getElementById('newRole').value = user.role;
+        document.getElementById('userFormTitle').innerText = '修改使用者';
+        document.getElementById('userSubmitBtn').innerText = '確認修改';
+        document.getElementById('userSubmitBtn').className = 'btn btn-warning w-100';
+        document.getElementById('cancelUserEditBtn').classList.remove('d-none');
+    }
 
-            const date = new Date();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            const hours = date.getHours().toString().padStart(2, '0');
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            const dateTimeStr = `${month}${day}${hours}${minutes}`;
+    function cancelUserEdit() {
+        document.getElementById('newUserForm').reset();
+        document.getElementById('isEditUser').value = 'false';
+        document.getElementById('newUsername').disabled = false;
+        document.getElementById('userFormTitle').innerText = '新增使用者';
+        document.getElementById('userSubmitBtn').innerText = '建立雲端帳號';
+        document.getElementById('userSubmitBtn').className = 'btn btn-primary w-100';
+        document.getElementById('cancelUserEditBtn').classList.add('d-none');
+    }
 
-            let baseFileName = originalFileName.replace(/\.js$/i, '');
-            // 移除舊的日期時間、錯題或更新字樣
-            baseFileName = baseFileName.replace(/(-)?(錯題|更新|常錯題目)?(-)?\d{4}(?:\d{4})?/g, '').trim().replace(/[-_]$/, '');
-            
-            // 處理檔名可能為空的情況
-            if (!baseFileName) {
-                baseFileName = '測驗題庫'; // 提供一個預設值
-            }
+    function deleteUser(u) { if(u==='admin'){alert('不可刪除管理員');return;} if(confirm('確定刪除？')) sendCloudCommand({op:'delete',tableName:'users',id:u, user: currentUser.username},'刪除成功'); }
+    function renderUserList() { 
+        const tbody = document.getElementById('userListBody'); tbody.innerHTML = ''; 
+        cloudUsers.forEach(u => { 
+            const editBtn = u.username==='admin' ? '' : `<button class="btn btn-sm btn-primary me-1" onclick="editUser('${u.username}')">修改</button>`;
+            const delBtn = u.username==='admin'||u.username===currentUser.username?'-':`<button class="btn btn-sm btn-danger" onclick="deleteUser('${u.username}')">刪除</button>`; 
+            tbody.innerHTML+=`<tr><td>${u.username}</td><td>${u.name}</td><td>${u.role}</td><td>${editBtn}${delBtn}</td></tr>`; 
+        }); 
+    }
+    
+    function renderLogs() { const tbody = document.getElementById('logListBody'); tbody.innerHTML = ''; cloudLogs.slice().reverse().slice(0, 100).forEach(log => { tbody.innerHTML += `<tr><td>${log.time}</td><td>${log.user}</td><td>${log.action}</td><td>${log.detail}</td></tr>`; }); }
 
-            const wrongFileName = `${baseFileName}-錯題-${dateTimeStr}.js`;
-            const updatedFileName = `${baseFileName}-更新-${dateTimeStr}.js`;
-            const frequentlyWrongFileName = `常錯題目${dateTimeStr}.js`; // 新增：常錯題目檔名
-            
-            const wrongQuestionsJs = `const questionBank = ${JSON.stringify(wrongQuestions, null, 2)};`;
-            const frequentlyWrongQuestionsJs = `const questionBank = ${JSON.stringify(frequentlyWrongQuestions, null, 2)};`; // 新增：常錯題目檔案內容
-            
-            // 再次比對要刪除的題目，確保匯出時的準確性
-            let updatedQuestionBank = questionBank.filter(q => !removedQuestions.some(removedQ => removedQ.id === q.id));
-            const updatedQuestionsJs = `const questionBank = ${JSON.stringify(updatedQuestionBank, null, 2)};`;
+    // 7. 渲染 & 排序
+    function sortBy(key) {
+        if(sortKey === key) { sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'; } else { sortKey = key; sortOrder = 'desc'; }
+        renderTable();
+    }
+    function renderTable() {
+        const tbody = document.getElementById('transactionList'); tbody.innerHTML = ''; let balance = 0;
+        const showId = document.getElementById('toggleId').checked;
+        document.querySelectorAll('.sort-icon').forEach(i => i.className = 'fas fa-sort sort-icon');
+        const icon = document.getElementById(`sort-${sortKey}`); if(icon) icon.className = `fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} sort-icon sort-active`;
+        document.querySelectorAll('.id-col').forEach(el => el.style.display = showId ? '' : 'none');
+        
+        transactions.sort((a,b) => {
+            let valA = a[sortKey]; let valB = b[sortKey];
+            if(sortKey === 'amount') { valA = parseFloat(valA); valB = parseFloat(valB); }
+            if(valA < valB) return sortOrder === 'asc' ? -1 : 1;
+            if(valA > valB) return sortOrder === 'asc' ? 1 : -1; return 0;
+        });
 
-            app.innerHTML = `
-                <div class="card text-center">
-                    <h1 class="text-3xl font-bold mb-4">測驗完成！</h1>
-                    <p class="text-xl text-gray-600">您的成績是：</p>
-                    <p class="text-5xl font-bold text-green-600 my-4">${correctAnswers} / ${quizSize}</p>
-                    <p class="text-gray-500">正確率: ${((correctAnswers / quizSize) * 100).toFixed(2)}%</p>
-                    
-                    <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-8">
-                        <button onclick="downloadFile('${wrongFileName}', this.getAttribute('data-content'))" data-content="${encodeURIComponent(wrongQuestionsJs)}" class="px-6 py-3 bg-red-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-red-600">匯出錯題檔</button>
-                        <button onclick="downloadFile('${updatedFileName}', this.getAttribute('data-content'))" data-content="${encodeURIComponent(updatedQuestionsJs)}" class="px-6 py-3 bg-purple-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-purple-600">匯出更新後題庫</button>
-                        <button onclick="downloadFile('${frequentlyWrongFileName}', this.getAttribute('data-content'))" data-content="${encodeURIComponent(frequentlyWrongQuestionsJs)}" class="px-6 py-3 bg-orange-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-orange-600">匯出常錯題目</button>
-                    </div>
-                    
-                    <button onclick="prepareAndPrint('answers')" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-blue-600 mt-4">列印答案與解析</button>
-                    <button onclick="prepareAndPrint('questions')" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg shadow-md transition-colors hover:bg-blue-600 mt-4">列印題本</button>
-                    <button onclick="renderInitialScreen()" class="mt-6 px-6 py-3 bg-gray-200 text-gray-700 font-bold rounded-lg shadow-md transition-colors hover:bg-gray-300">返回首頁</button>
+        transactions.forEach(t => {
+            if(t.type === 'income') balance += parseInt(t.amount); else balance -= parseInt(t.amount);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td class="id-col col-id" style="${showId?'':'display:none'}">${t.id}</td>
+                <td>${t.date}</td><td><span class="badge bg-light text-dark border">${t.category}</span></td><td>${t.desc}</td><td class="text-end text-${t.type==='income'?'success':'danger'}">${parseInt(t.amount).toLocaleString()}</td>
+                <td><button class="btn btn-sm btn-outline-primary" onclick="editTrans('${t.id}')"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-outline-danger" onclick="deleteTrans('${t.id}')"><i class="fas fa-trash"></i></button></td>`;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('currentBalance').innerText = '總餘額: ' + balance.toLocaleString();
+    }
+    
+    // 編輯 & 取消... (同前)
+    function editTrans(id){ const t=transactions.find(x=>String(x.id)===String(id)); if(!t)return; document.getElementById('editId').value=t.id; document.getElementById('date').value=t.date; document.getElementById('type').value=t.type; document.getElementById('amount').value=t.amount; updateCategoriesFromSettings(); document.getElementById('category').value=t.category; checkMealCategory(); 
+        if(t.category==='餐費支出'){ const sel=document.getElementById('descSelect'); if(settings.mealOptions.includes(t.desc)) sel.value=t.desc; else{ sel.value='other'; document.getElementById('descOtherInput').value=t.desc; checkMealOption(); } }else{document.getElementById('descInput').value=t.desc;} 
+        document.getElementById('formTitle').innerText='修改模式'; document.getElementById('formTitle').className='card-header bg-warning text-dark'; document.getElementById('submitBtn').innerHTML='💾 儲存修改'; document.getElementById('submitBtn').className='btn btn-warning w-100'; document.getElementById('cancelEditBtn').classList.remove('d-none'); window.scrollTo({top:0,behavior:'smooth'}); 
+    }
+    function cancelEdit(){ document.getElementById('accountForm').reset(); document.getElementById('editId').value=''; document.getElementById('date').value=getTodayString(); document.getElementById('formTitle').innerText='新增交易'; document.getElementById('formTitle').className='card-header bg-primary text-white'; document.getElementById('submitBtn').innerHTML='<i class="fas fa-check"></i> 記錄並送出'; document.getElementById('submitBtn').className='btn btn-primary w-100'; document.getElementById('cancelEditBtn').classList.add('d-none'); checkMealCategory(); }
+    function updateCategoriesFromSettings() { const type = document.getElementById('type').value; const catSelect = document.getElementById('category'); catSelect.innerHTML = ''; settings[type].forEach(cat => catSelect.add(new Option(cat, cat))); }
+    function checkMealCategory() { const isMeal = document.getElementById('category').value === '餐費支出'; document.getElementById('descInput').classList.toggle('d-none', isMeal); document.getElementById('descSelect').classList.toggle('d-none', !isMeal); document.getElementById('descOtherInput').classList.add('d-none'); if (isMeal) { const sel = document.getElementById('descSelect'); sel.innerHTML = ''; settings.mealOptions.forEach(o => sel.add(new Option(o, o))); sel.add(new Option('其他 (手動輸入)', 'other')); checkMealOption(); } }
+    function checkMealOption() { document.getElementById('descOtherInput').classList.toggle('d-none', document.getElementById('descSelect').value !== 'other'); }
+    
+    function updateDateRange() { const m=document.getElementById('reportPeriodMode').value, s=document.getElementById('reportStartDate'), e=document.getElementById('reportEndDate'), n=new Date(); if(m==='thisMonth'){s.value=new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10);e.value=new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10);} else if(m==='lastMonth'){s.value=new Date(n.getFullYear(),n.getMonth()-1,1).toISOString().slice(0,10);e.value=new Date(n.getFullYear(),n.getMonth(),0).toISOString().slice(0,10);} updatePreviewStats(); }
+    function getReportData(s,e){ let arr=[...transactions].sort((a,b)=>new Date(a.date)-new Date(b.date)); let open=0, incS={}, expS={}, tI=0, tE=0; settings.income.forEach(c=>incS[c]=0); settings.expense.forEach(c=>expS[c]=0); arr.forEach(t=>{ if(t.date<s){ if(t.type==='income')open+=parseInt(t.amount); else open-=parseInt(t.amount); } else if(t.date>=s && t.date<=e){ if(t.type==='income'){ if(!incS[t.category])incS[t.category]=0; incS[t.category]+=parseInt(t.amount); tI+=parseInt(t.amount); } else{ if(!expS[t.category])expS[t.category]=0; expS[t.category]+=parseInt(t.amount); tE+=parseInt(t.amount); } } }); return {openingBalance:open, periodData:arr.filter(t=>t.date>=s&&t.date<=e), incStats:incS, expStats:expS, totalInc:tI, totalExp:tE}; }
+    function updatePreviewStats() { const s=document.getElementById('reportStartDate').value, e=document.getElementById('reportEndDate').value; if(!s||!e)return; const d = getReportData(s,e); const ib=document.getElementById('preview-income-body'), eb=document.getElementById('preview-expense-body'); ib.innerHTML=`<tr><td>上期餘額</td><td class="text-end">${d.openingBalance.toLocaleString()}</td></tr>`; eb.innerHTML=''; for(const[c,v]of Object.entries(d.incStats))if(v>0)ib.innerHTML+=`<tr><td>${c}</td><td class="text-end">${v.toLocaleString()}</td></tr>`; for(const[c,v]of Object.entries(d.expStats))if(v>0)eb.innerHTML+=`<tr><td>${c}</td><td class="text-end">${v.toLocaleString()}</td></tr>`; const g=d.totalInc+d.openingBalance; document.getElementById('preview-final-balance').textContent=(g-d.totalExp).toLocaleString(); }
+    
+    function exportLastMonthData() { const today = new Date(); const endStr = today.toISOString().slice(0,10); const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1); const startStr = lastMonth.toISOString().slice(0,10); exportComplexExcel(startStr, endStr); }
+    function exportComplexExcel(startOverride, endOverride) { const s = startOverride || document.getElementById('reportStartDate').value; const e = endOverride || document.getElementById('reportEndDate').value; if(!s || !e) { alert('請選擇日期'); return; } const d = getReportData(s, e); const wb = XLSX.utils.book_new(); let detailData = [['系統序號', '日期', '收支類型', '分類', '內容 (備註)', '收入', '支出', '經手人']]; d.periodData.forEach(t => { detailData.push([ t.id, t.date, t.type==='income'?'收入':'支出', t.category, t.desc, t.type==='income'?parseInt(t.amount):0, t.type==='expense'?parseInt(t.amount):0, t.createdBy||'' ]); }); const ws1 = XLSX.utils.aoa_to_sheet(detailData); ws1['!cols'] = [{wch:15}, {wch:12}, {wch:8}, {wch:15}, {wch:30}, {wch:10}, {wch:10}, {wch:10}]; XLSX.utils.book_append_sheet(wb, ws1, "期間帳務明細"); let summaryData = [['統計項目', '金額', '說明', '製表時間', new Date().toLocaleString()], ['期初餘額', d.openingBalance, '', '', ''], ['', '', '', '', ''], ['【收入項目】', '金額', '', '【支出項目】', '金額']]; let incRows = Object.entries(d.incStats).filter(([k,v])=>v>0); let expRows = Object.entries(d.expStats).filter(([k,v])=>v>0); let maxR = Math.max(incRows.length, expRows.length); for(let i=0; i<maxR; i++) { let row = []; if(i < incRows.length) { row.push(incRows[i][0], incRows[i][1]); } else { row.push('', ''); } row.push(''); if(i < expRows.length) { row.push(expRows[i][0], expRows[i][1]); } else { row.push('', ''); } summaryData.push(row); } summaryData.push(['', '', '', '', ''], ['收入總計', d.totalInc, '', '支出總計', d.totalExp], ['', '', '', '', ''], ['本期結餘', d.openingBalance + d.totalInc - d.totalExp, '(= 期初 + 收入 - 支出)', '', '']); const ws2 = XLSX.utils.aoa_to_sheet(summaryData); ws2['!cols'] = [{wch:20}, {wch:12}, {wch:5}, {wch:20}, {wch:12}]; XLSX.utils.book_append_sheet(wb, ws2, "收支匯整總表"); XLSX.writeFile(wb, `高登科靜修校_報表_${s}_${e}.xlsx`); }
 
-                    <div class="text-left">${wrongQuestionsHtml}</div>
-                    <div class="text-left">${frequentlyWrongHtml}</div>
-                    <div class="text-left">${removedQuestionsHtml}</div>
-                </div>
-            `;
-        }
-
-        // Utility function to download files
-        function downloadFile(filename, encodedContent) {
-            const content = decodeURIComponent(encodedContent);
-            const blob = new Blob([content], { type: 'text/javascript' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        // Start the application
-        renderInitialScreen();
-    </script>
+    function exportLogs() {
+        if (!cloudLogs || cloudLogs.length === 0) { alert('無紀錄可匯出'); return; }
+        const now = new Date();
+        const timestamp = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+        const filename = `${timestamp}-操作記錄.xlsx`;
+        const sheetData = cloudLogs.map(log => ({ '時間': log.time, '操作者': log.user, '動作': log.action, '詳情': log.detail }));
+        const wb = XLSX.utils.book_new(); const ws = XLSX.utils.json_to_sheet(sheetData); ws['!cols'] = [{wch:20}, {wch:15}, {wch:15}, {wch:50}];
+        XLSX.utils.book_append_sheet(wb, ws, "操作記錄"); XLSX.writeFile(wb, filename);
+    }
+</script>
 </body>
 </html>
